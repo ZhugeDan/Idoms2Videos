@@ -19,6 +19,7 @@ os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
 # 导入自定义模块
 from config import config
 from utils import Logger, PerformanceMonitor, cache_manager
+from loguru import logger
 from modules.story_generator import DeepSeekStoryGenerator
 from modules.image_generator import ImageGenerator
 from modules.audio_generator import AudioGenerator
@@ -161,26 +162,34 @@ class IdiomStoryVideoGenerator:
                 col_idx = i % 3
                 with image_columns[col_idx]:
                     st.image(image, caption=f"场景 {i+1}: {scene[:30]}...", use_container_width=True)
+                
+                logger.info(f"成功生成第 {i+1} 张插画")
                     
             except Exception as e:
+                logger.error(f"生成第 {i+1} 张插画失败: {e}")
                 st.error(f"生成第 {i+1} 张插画失败: {e}")
+                # 继续生成其他图片，不中断整个流程
                 continue
         
         # 保存到缓存
         cache_manager.save_cache(cache_key, images)
         
         # 保存图片到output_pic文件夹
-        saved_paths = self._save_images_to_output(images, idiom)
-        
-        status_text.text("✅ 所有插画生成完成")
-        # 再次整体展示，确保始终能看到插画
-        st.image(images, caption=[f"场景 {i+1}" for i in range(len(images))], use_container_width=True)
-        
-        # 显示保存路径信息
-        if saved_paths:
-            st.success(f"📁 图片已保存到: {config.OUTPUT_PIC_DIR}")
-            for i, path in enumerate(saved_paths):
-                st.text(f"场景 {i+1}: {path.name}")
+        if images:  # 确保有图片可保存
+            saved_paths = self._save_images_to_output(images, idiom)
+            
+            status_text.text(f"✅ 成功生成 {len(images)} 张插画")
+            
+            # 显示保存路径信息
+            if saved_paths:
+                st.success(f"📁 图片已保存到: {config.OUTPUT_PIC_DIR}")
+                for i, path in enumerate(saved_paths):
+                    st.text(f"场景 {i+1}: {path.name}")
+            else:
+                st.warning("⚠️ 图片保存失败")
+        else:
+            st.error("❌ 没有成功生成任何图片")
+            status_text.text("❌ 图片生成失败")
         
         return images
     
@@ -189,23 +198,30 @@ class IdiomStoryVideoGenerator:
         try:
             # 确保输出目录存在
             config.OUTPUT_PIC_DIR.mkdir(parents=True, exist_ok=True)
+            logger.info(f"开始保存 {len(images)} 张图片到: {config.OUTPUT_PIC_DIR}")
             
             saved_paths = []
             for i, image in enumerate(images):
-                # 生成文件名：成语_序号.jpg
-                filename = f"{idiom}_{i+1:02d}.jpg"
-                output_path = config.OUTPUT_PIC_DIR / filename
-                
-                # 保存图片
-                image.save(output_path, quality=95)
-                saved_paths.append(output_path)
-                
-                logger.info(f"图片已保存: {output_path}")
+                try:
+                    # 生成文件名：成语_序号.jpg
+                    filename = f"{idiom}_{i+1:02d}.jpg"
+                    output_path = config.OUTPUT_PIC_DIR / filename
+                    
+                    # 保存图片
+                    image.save(output_path, quality=95)
+                    saved_paths.append(output_path)
+                    
+                    logger.info(f"图片已保存: {output_path}")
+                    
+                except Exception as e:
+                    logger.error(f"保存第 {i+1} 张图片失败: {e}")
+                    continue
             
+            logger.info(f"成功保存 {len(saved_paths)} 张图片")
             return saved_paths
             
         except Exception as e:
-            logger.error(f"保存图片失败: {e}")
+            logger.error(f"保存图片过程失败: {e}")
             return []
     
     def _display_images(self, images: List, scenes: List[str]):
