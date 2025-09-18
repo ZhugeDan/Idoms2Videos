@@ -11,10 +11,13 @@ from concurrent.futures import ThreadPoolExecutor
 # 导入自定义模块
 from config import config
 from utils import Logger, PerformanceMonitor, cache_manager
+from database_manager import db_manager
 from modules.story_generator import DeepSeekStoryGenerator
 from modules.image_generator import ImageGenerator
 from modules.audio_generator import AudioGenerator
-from simple_video_composer import SimpleVideoComposer
+from modules.video_composer import VideoComposer
+from fixed_audio_generator import fixed_audio_generator
+from fixed_video_composer import fixed_video_composer
 from modules.scene_extractor import SceneExtractor
 from modules.text_segmenter import TextSegmenter
 
@@ -62,7 +65,7 @@ class IdiomStoryVideoGenerator:
                 self.audio_generator = AudioGenerator()
             
             if not self.video_composer:
-                self.video_composer = SimpleVideoComposer()
+                self.video_composer = VideoComposer()
             
             if not self.performance_monitor:
                 self.performance_monitor = PerformanceMonitor()
@@ -108,7 +111,7 @@ class IdiomStoryVideoGenerator:
     def extract_scenes_from_story(self, story_text: str) -> List[str]:
         """从故事中提取场景"""
         with st.spinner("正在提取故事场景..."):
-            scenes = self.scene_extractor.extract_scenes(story_text)
+            scenes = self.scene_extractor.extract_scenes(story_text, max_scenes=5)
         
         return scenes
     
@@ -223,14 +226,43 @@ class IdiomStoryVideoGenerator:
             # 步骤3：提取场景
             scenes = self.extract_scenes_from_story(edited_story)
             
+            # 保存故事和场景到数据库
+            story_id = db_manager.save_story(idiom, edited_story, scenes)
+            
             # 步骤4：生成插画
             images = self.generate_story_images(scenes, idiom)
             
-            # 步骤5：生成音频
-            audio = self.generate_story_audio(edited_story, idiom)
+            # 保存图片到数据库
+            image_paths = db_manager.save_images(story_id, images, idiom)
             
-            # 步骤6：创建视频
-            video_path = self.create_video(images, audio, idiom)
+            # 显示生成的图片
+            if images:
+                st.subheader("🖼️ 生成的插画")
+                for i, image in enumerate(images):
+                    with st.expander(f"场景 {i+1}: {scenes[i][:30]}..."):
+                        st.image(image, caption=scenes[i][:50])
+            
+            # 步骤5：生成音频（使用修复版）
+            audio_path = fixed_audio_generator.generate_story_audio(edited_story, idiom)
+            
+            if audio_path:
+                # 保存音频到数据库
+                audio_path = db_manager.save_audio(story_id, audio_path, idiom)
+            else:
+                st.warning("音频生成失败，跳过音频保存")
+            
+            # 步骤6：创建视频（使用修复版）
+            video_path = None
+            if audio_path:
+                video_path = fixed_video_composer.create_video(images, audio_path, idiom)
+                
+                if video_path:
+                    # 保存视频到数据库
+                    video_path = db_manager.save_video(story_id, video_path, idiom)
+                else:
+                    st.warning("视频生成失败")
+            else:
+                st.warning("由于音频生成失败，跳过视频生成")
             
             return {
                 "status": "success",
@@ -415,6 +447,15 @@ def render_processing_interface(generator: IdiomStoryVideoGenerator, idiom: str)
 
 def main():
     """主函数"""
+    # 添加侧边栏导航
+    st.sidebar.title("导航")
+    page = st.sidebar.selectbox("选择页面", ["生成故事", "数据库管理"])
+    
+    if page == "数据库管理":
+        from database_ui import show_database_management
+        show_database_management()
+        return
+    
     # 初始化会话状态
     if 'generator' not in st.session_state:
         st.session_state.generator = IdiomStoryVideoGenerator()
