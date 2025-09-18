@@ -24,6 +24,7 @@ class Config:
     BASE_DIR = Path(__file__).parent
     OUTPUT_DIR = BASE_DIR / os.getenv('OUTPUT_DIR', 'output')
     OUTPUT_PIC_DIR = BASE_DIR / os.getenv('OUTPUT_PIC_DIR', 'output_pic')
+    OUTPUT_AUDIO_DIR = BASE_DIR / os.getenv('OUTPUT_AUDIO_DIR', 'output_audio')
     TEMP_DIR = BASE_DIR / os.getenv('TEMP_DIR', 'temp')
     CACHE_DIR = BASE_DIR / os.getenv('CACHE_DIR', 'cache')
     LOG_DIR = BASE_DIR / os.getenv('LOG_DIR', 'logs')
@@ -66,7 +67,7 @@ class Config:
     @classmethod
     def create_directories(cls):
         """创建必要的目录"""
-        for directory in [cls.OUTPUT_DIR, cls.OUTPUT_PIC_DIR, cls.TEMP_DIR, cls.CACHE_DIR, cls.LOG_DIR]:
+        for directory in [cls.OUTPUT_DIR, cls.OUTPUT_PIC_DIR, cls.OUTPUT_AUDIO_DIR, cls.TEMP_DIR, cls.CACHE_DIR, cls.LOG_DIR]:
             directory.mkdir(parents=True, exist_ok=True)
     
     @classmethod

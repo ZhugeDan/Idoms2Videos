@@ -153,3 +153,6 @@ if __name__ == "__main__":
     logger.info("RTX 5060优化完成！现在可以使用GPU加速了")
     logger.info("=" * 60)
 
+
+
+

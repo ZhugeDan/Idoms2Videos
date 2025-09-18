@@ -7,23 +7,13 @@ from pathlib import Path
 from typing import List, Optional, Dict
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-import warnings
-
-# 抑制警告信息
-warnings.filterwarnings("ignore", message="A matching Triton is not available")
-warnings.filterwarnings("ignore", message="torch_dtype is deprecated")
-warnings.filterwarnings("ignore", message="Couldn't connect to the Hub")
-warnings.filterwarnings("ignore", message="Token indices sequence length is longer than")
-os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
 
 # 导入自定义模块
 from config import config
 from utils import Logger, PerformanceMonitor, cache_manager
-from loguru import logger
 from modules.story_generator import DeepSeekStoryGenerator
 from modules.image_generator import ImageGenerator
 from modules.audio_generator import AudioGenerator
-from modules.video_composer import VideoComposer
 from simple_video_composer import SimpleVideoComposer
 from modules.scene_extractor import SceneExtractor
 from modules.text_segmenter import TextSegmenter
@@ -72,7 +62,6 @@ class IdiomStoryVideoGenerator:
                 self.audio_generator = AudioGenerator()
             
             if not self.video_composer:
-                # 使用简化版视频合成器避免MoviePy兼容性问题
                 self.video_composer = SimpleVideoComposer()
             
             if not self.performance_monitor:
@@ -137,18 +126,12 @@ class IdiomStoryVideoGenerator:
         
         if cached_images:
             st.info("🖼️ 使用缓存的插画")
-            # 显示缓存的图片
-            self._display_images(cached_images, scenes)
             return cached_images
         
         # 生成新插画
         images = []
         progress_bar = st.progress(0)
         status_text = st.empty()
-        
-        # 创建图片展示区域
-        st.subheader("🎨 生成的插画")
-        image_columns = st.columns(3)  # 每行显示3张图片
         
         for i, scene in enumerate(scenes):
             status_text.text(f"正在生成第 {i+1}/{len(scenes)} 张插画...")
@@ -158,81 +141,19 @@ class IdiomStoryVideoGenerator:
                 images.append(image)
                 progress_bar.progress((i + 1) / len(scenes))
                 
-                # 在网格中显示图片
-                col_idx = i % 3
-                with image_columns[col_idx]:
-                    st.image(image, caption=f"场景 {i+1}: {scene[:30]}...", use_container_width=True)
-                
-                logger.info(f"成功生成第 {i+1} 张插画")
+                # 显示生成的图片
+                with st.expander(f"场景 {i+1}: {scene[:30]}..."):
+                    st.image(image, caption=scene[:50])
                     
             except Exception as e:
-                logger.error(f"生成第 {i+1} 张插画失败: {e}")
                 st.error(f"生成第 {i+1} 张插画失败: {e}")
-                # 继续生成其他图片，不中断整个流程
                 continue
         
         # 保存到缓存
         cache_manager.save_cache(cache_key, images)
         
-        # 保存图片到output_pic文件夹
-        if images:  # 确保有图片可保存
-            saved_paths = self._save_images_to_output(images, idiom)
-            
-            status_text.text(f"✅ 成功生成 {len(images)} 张插画")
-            
-            # 显示保存路径信息
-            if saved_paths:
-                st.success(f"📁 图片已保存到: {config.OUTPUT_PIC_DIR}")
-                for i, path in enumerate(saved_paths):
-                    st.text(f"场景 {i+1}: {path.name}")
-            else:
-                st.warning("⚠️ 图片保存失败")
-        else:
-            st.error("❌ 没有成功生成任何图片")
-            status_text.text("❌ 图片生成失败")
-        
+        status_text.text("✅ 所有插画生成完成")
         return images
-    
-    def _save_images_to_output(self, images: List, idiom: str) -> List[Path]:
-        """保存图片到output_pic文件夹"""
-        try:
-            # 确保输出目录存在
-            config.OUTPUT_PIC_DIR.mkdir(parents=True, exist_ok=True)
-            logger.info(f"开始保存 {len(images)} 张图片到: {config.OUTPUT_PIC_DIR}")
-            
-            saved_paths = []
-            for i, image in enumerate(images):
-                try:
-                    # 生成文件名：成语_序号.jpg
-                    filename = f"{idiom}_{i+1:02d}.jpg"
-                    output_path = config.OUTPUT_PIC_DIR / filename
-                    
-                    # 保存图片
-                    image.save(output_path, quality=95)
-                    saved_paths.append(output_path)
-                    
-                    logger.info(f"图片已保存: {output_path}")
-                    
-                except Exception as e:
-                    logger.error(f"保存第 {i+1} 张图片失败: {e}")
-                    continue
-            
-            logger.info(f"成功保存 {len(saved_paths)} 张图片")
-            return saved_paths
-            
-        except Exception as e:
-            logger.error(f"保存图片过程失败: {e}")
-            return []
-    
-    def _display_images(self, images: List, scenes: List[str]):
-        """显示图片网格"""
-        st.subheader("🎨 生成的插画")
-        image_columns = st.columns(3)  # 每行显示3张图片
-        
-        for i, (image, scene) in enumerate(zip(images, scenes)):
-            col_idx = i % 3
-            with image_columns[col_idx]:
-                st.image(image, caption=f"场景 {i+1}: {scene[:30]}...", use_container_width=True)
     
     def generate_story_audio(self, story_text: str, idiom: str) -> any:
         """生成故事音频"""
@@ -305,44 +226,18 @@ class IdiomStoryVideoGenerator:
             # 步骤4：生成插画
             images = self.generate_story_images(scenes, idiom)
             
-            # 显示插画统计
-            st.success(f"✅ 成功生成 {len(images)} 张插画")
+            # 步骤5：生成音频
+            audio = self.generate_story_audio(edited_story, idiom)
             
-            # 步骤5：询问是否生成视频
-            st.subheader("🎬 视频生成选项")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                generate_video = st.checkbox("生成视频", value=True, help="勾选此项将生成包含音频的完整视频")
-            
-            with col2:
-                generate_audio = st.checkbox("生成音频", value=True, help="勾选此项将生成故事音频")
-            
-            video_path = None
-            audio = None
-            
-            if generate_audio:
-                # 步骤5：生成音频
-                audio = self.generate_story_audio(edited_story, idiom)
-                st.success("✅ 音频生成完成")
-            
-            if generate_video and audio:
-                # 步骤6：创建视频
-                try:
-                    video_path = self.create_video(images, audio, idiom)
-                    st.success("✅ 视频生成完成")
-                except Exception as e:
-                    st.error(f"视频生成失败: {e}")
-                    st.info("您可以查看生成的插画，视频生成功能暂时不可用")
+            # 步骤6：创建视频
+            video_path = self.create_video(images, audio, idiom)
             
             return {
                 "status": "success",
                 "idiom": idiom,
                 "story": edited_story,
                 "scenes": scenes,
-                "images": images,
                 "video_path": video_path,
-                "audio": audio,
                 "images_count": len(images)
             }
             
@@ -489,81 +384,22 @@ def render_processing_interface(generator: IdiomStoryVideoGenerator, idiom: str)
         result = generator.process_single_idiom(idiom)
         
         if result["status"] == "success":
-            st.success("✅ 处理完成！")
+            st.success("✅ 视频生成成功！")
             
-            # 显示结果统计
-            col1, col2, col3 = st.columns(3)
+            # 显示结果
+            col1, col2 = st.columns(2)
             
             with col1:
+                st.subheader("📊 生成统计")
                 st.metric("场景数量", result["images_count"])
-            
-            with col2:
                 st.metric("故事长度", f"{len(result['story'])} 字")
             
-            with col3:
-                if result["video_path"]:
-                    st.metric("视频状态", "✅ 已生成")
-                else:
-                    st.metric("视频状态", "❌ 未生成")
-            
-            # 显示生成的插画
-            if "images" in result and result["images"]:
-                st.subheader("🎨 生成的插画")
-                self._display_images(result["images"], result["scenes"])
-            
-            # 显示视频（如果生成成功）
-            if result["video_path"] and os.path.exists(result["video_path"]):
-                st.subheader("🎬 生成的视频")
-                st.video(result["video_path"])
-            
-            # 显示音频（如果生成成功）
-            if result["audio"]:
-                st.subheader("🔊 生成的音频")
-                st.info("音频已生成，可在视频中听到")
-            
-            # 添加下载按钮
-            st.subheader("💾 下载选项")
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                if result["images"]:
-                    # 创建图片压缩包
-                    import zipfile
-                    import io
-                    
-                    zip_buffer = io.BytesIO()
-                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                        for i, image in enumerate(result["images"]):
-                            img_buffer = io.BytesIO()
-                            image.save(img_buffer, format='PNG')
-                            zip_file.writestr(f"scene_{i+1}.png", img_buffer.getvalue())
-                    
-                    zip_buffer.seek(0)
-                    st.download_button(
-                        label="📦 下载插画包",
-                        data=zip_buffer.getvalue(),
-                        file_name=f"{idiom}_images.zip",
-                        mime="application/zip"
-                    )
-            
             with col2:
-                if result["video_path"] and os.path.exists(result["video_path"]):
-                    with open(result["video_path"], "rb") as video_file:
-                        st.download_button(
-                            label="🎬 下载视频",
-                            data=video_file.read(),
-                            file_name=f"{idiom}_story.mp4",
-                            mime="video/mp4"
-                        )
-            
-            with col3:
-                if result["story"]:
-                    st.download_button(
-                        label="📝 下载故事文本",
-                        data=result["story"],
-                        file_name=f"{idiom}_story.txt",
-                        mime="text/plain"
-                    )
+                st.subheader("🎬 生成视频")
+                if os.path.exists(result["video_path"]):
+                    st.video(result["video_path"])
+                else:
+                    st.error("视频文件不存在")
             
             # 重置状态
             st.session_state.processing_step = 'input'

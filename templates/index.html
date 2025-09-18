@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>成语故事短视频生成器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .image-section {
+            flex: 1;
+            background-color: #0f0f0f;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .portrait {
+            width: 85%;
+            height: auto;
+            border: 2px solid #3a3a3a;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
+            filter: contrast(1.1) brightness(0.9) sepia(0.2);
+        }
+        
+        .navigation {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+        }
+        
+        .nav-btn {
+            background-color: rgba(40, 40, 40, 0.7);
+            color: #b0b0b0;
+            border: 1px solid #555;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.3s;
+        }
+        
+        .nav-btn:hover {
+            background-color: rgba(60, 60, 60, 0.9);
+            color: #e0e0e0;
+        }
+        
+        .nav-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .ui-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            background: linear-gradient(to bottom, #222222, #151515);
+            border-left: 1px solid #333;
+        }
+        
+        .dialogue {
+            flex: 1;
+            padding: 20px;
+            background-color: rgba(30, 30, 30, 0.7);
+            border: 1px solid #444;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            overflow-y: auto;
+        }
+        
+        .dialogue-text {
+            line-height: 1.6;
+            font-size: 16px;
+        }
+        
+        .dialogue-text em {
+            color: #a58e6d;
+            font-style: normal;
+        }
+        
+        .exp-notification {
+            color: #a5c0a0;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .option-btn {
+            background-color: #2a2a2a;
+            color: #d0d0d0;
+            border: 1px solid #444;
+            padding: 12px 15px;
+            text-align: left;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        
+        .option-btn:hover {
+            background-color: #353535;
+            border-color: #555;
+        }
+        
+        .option-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .option-btn.loading {
+            background-color: #3a2e1f;
+            border-color: #a58e6d;
+        }
+        
+        .tools {
+            display: flex;
+            gap: 10px;
+            margin-top: auto;
+        }
+        
+        .tool-btn {
+            background-color: #2a2a2a;
+            color: #d0d0d0;
+            border: 1px solid #444;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .tool-btn:hover {
+            background-color: #353535;
+        }
+        
+        .tool-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #333;
+            color: #888;
+            font-size: 14px;
+        }
+        
+        .time-display::before {
+            content: "时间: ";
+        }
+        
+        .day-counter::before {
+            content: "进度: ";
+        }
+        
+        .input-section {
+            margin-bottom: 20px;
+        }
+        
+        .input-section input {
+            background-color: #2a2a2a;
+            color: #d0d0d0;
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 5px;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        
+        .input-section button {
+            background-color: #a58e6d;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+        }
+        
+        .input-section button:hover {
+            background-color: #8a7356;
+        }
+        
+        .input-section button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 左侧图片区域 -->
+        <div class="image-section">
+            <div class="navigation">
+                <div class="nav-btn" id="prev-btn" onclick="previousImage()">←</div>
+                <div class="nav-btn" id="next-btn" onclick="nextImage()">→</div>
+            </div>
+            <img id="main-image" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAwIiBoZWlnaHQ9IjgwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMWExYTFhIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuaXoOazleiDveWKoOi9veWbvueJhzwvdGV4dD48L3N2Zz4=" alt="成语故事插画" class="portrait">
+        </div>
+        
+        <!-- 右侧用户界面 -->
+        <div class="ui-section">
+            <div class="input-section">
+                <input type="text" id="idiom-input" placeholder="请输入成语，例如：掩耳盗铃" />
+                <button id="start-btn" onclick="startGeneration()">🚀 开始生成</button>
+            </div>
+            
+            <div class="dialogue">
+                <div class="dialogue-text" id="story-content">
+                    <p>请输入成语，开始生成故事...</p>
+                </div>
+                <div class="exp-notification" id="progress-notification" style="display: none;">
+                    正在生成内容...
+                </div>
+            </div>
+            
+            <div class="options">
+                <button class="option-btn" id="story-btn" onclick="generateStory()" disabled>📚 生成故事</button>
+                <button class="option-btn" id="image-btn" onclick="generateImages()" disabled>🎨 生成插画</button>
+                <button class="option-btn" id="audio-btn" onclick="generateAudio()" disabled>🔊 生成音频</button>
+                <button class="option-btn" id="video-btn" onclick="createVideo()" disabled>🎬 创建视频</button>
+            </div>
+            
+            <div class="tools">
+                <button class="tool-btn" id="download-images-btn" onclick="downloadImages()" disabled>下载图片</button>
+                <button class="tool-btn" id="download-audio-btn" onclick="downloadAudio()" disabled>下载音频</button>
+                <button class="tool-btn" id="download-video-btn" onclick="downloadVideo()" disabled>下载视频</button>
+                <div style="margin-left: auto; color: #888; font-size: 14px;" id="file-count">0</div>
+            </div>
+            
+            <div class="status-bar">
+                <div class="time-display" id="current-time">00:00</div>
+                <div class="day-counter" id="progress-counter">0</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentImageIndex = 0;
+        let images = [];
+        let currentStory = '';
+        let currentIdiom = '';
+        let currentAudioPath = '';
+        let currentVideoPath = '';
+        
+        // 初始化
+        function init() {
+            updateTime();
+            setInterval(updateTime, 1000);
+            updateFileCount();
+        }
+        
+        // 开始生成
+        async function startGeneration() {
+            const idiom = document.getElementById('idiom-input').value.trim();
+            if (!idiom) {
+                alert('请输入成语');
+                return;
+            }
+            
+            currentIdiom = idiom;
+            showProgress('正在生成故事...');
+            
+            try {
+                const response = await fetch('/api/generate-story', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ idiom: idiom })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentStory = data.story;
+                    updateStoryContent(data.story);
+                    enableButton('story-btn');
+                    hideProgress();
+                } else {
+                    alert('生成故事失败: ' + data.error);
+                    hideProgress();
+                }
+            } catch (error) {
+                alert('生成故事失败: ' + error.message);
+                hideProgress();
+            }
+        }
+        
+        // 生成图片
+        async function generateImages() {
+            if (!currentStory) {
+                alert('请先生成故事');
+                return;
+            }
+            
+            showProgress('正在生成插画...');
+            setButtonLoading('image-btn', true);
+            
+            try {
+                const response = await fetch('/api/generate-images', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        story: currentStory,
+                        idiom: currentIdiom 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    images = data.images;
+                    currentImageIndex = 0;
+                    updateImage();
+                    enableButton('download-images-btn');
+                    hideProgress();
+                } else {
+                    alert('生成图片失败: ' + data.error);
+                    hideProgress();
+                }
+            } catch (error) {
+                alert('生成图片失败: ' + error.message);
+                hideProgress();
+            } finally {
+                setButtonLoading('image-btn', false);
+            }
+        }
+        
+        // 生成音频
+        async function generateAudio() {
+            if (!currentStory) {
+                alert('请先生成故事');
+                return;
+            }
+            
+            showProgress('正在生成音频...');
+            setButtonLoading('audio-btn', true);
+            
+            try {
+                const response = await fetch('/api/generate-audio', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        story: currentStory,
+                        idiom: currentIdiom 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentAudioPath = data.audio_path;
+                    enableButton('download-audio-btn');
+                    hideProgress();
+                } else {
+                    alert('生成音频失败: ' + data.error);
+                    hideProgress();
+                }
+            } catch (error) {
+                alert('生成音频失败: ' + error.message);
+                hideProgress();
+            } finally {
+                setButtonLoading('audio-btn', false);
+            }
+        }
+        
+        // 创建视频
+        async function createVideo() {
+            if (!images.length) {
+                alert('请先生成图片');
+                return;
+            }
+            
+            showProgress('正在创建视频...');
+            setButtonLoading('video-btn', true);
+            
+            try {
+                const response = await fetch('/api/create-video', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        images: images,
+                        audio_path: currentAudioPath,
+                        idiom: currentIdiom,
+                        video_style: 'enhanced',
+                        transition_type: 'fade'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentVideoPath = data.video_path;
+                    enableButton('download-video-btn');
+                    hideProgress();
+                } else {
+                    alert('创建视频失败: ' + data.error);
+                    hideProgress();
+                }
+            } catch (error) {
+                alert('创建视频失败: ' + error.message);
+                hideProgress();
+            } finally {
+                setButtonLoading('video-btn', false);
+            }
+        }
+        
+        // 图片导航
+        function previousImage() {
+            if (images.length > 0) {
+                currentImageIndex = (currentImageIndex - 1 + images.length) % images.length;
+                updateImage();
+            }
+        }
+        
+        function nextImage() {
+            if (images.length > 0) {
+                currentImageIndex = (currentImageIndex + 1) % images.length;
+                updateImage();
+            }
+        }
+        
+        function updateImage() {
+            const img = document.getElementById('main-image');
+            if (images.length > 0) {
+                img.src = images[currentImageIndex].data;
+            }
+        }
+        
+        // 下载功能
+        function downloadImages() {
+            if (images.length > 0) {
+                // 这里可以实现批量下载
+                alert('图片下载功能');
+            }
+        }
+        
+        function downloadAudio() {
+            if (currentAudioPath) {
+                window.open('/download/' + currentAudioPath.split('/').pop());
+            }
+        }
+        
+        function downloadVideo() {
+            if (currentVideoPath) {
+                window.open('/download/' + currentVideoPath.split('/').pop());
+            }
+        }
+        
+        // 工具函数
+        function updateStoryContent(story) {
+            document.getElementById('story-content').innerHTML = `
+                <p><strong>${currentIdiom}</strong> - ${story}</p>
+            `;
+        }
+        
+        function showProgress(message) {
+            const notification = document.getElementById('progress-notification');
+            notification.textContent = message;
+            notification.style.display = 'block';
+        }
+        
+        function hideProgress() {
+            document.getElementById('progress-notification').style.display = 'none';
+        }
+        
+        function enableButton(buttonId) {
+            document.getElementById(buttonId).disabled = false;
+        }
+        
+        function setButtonLoading(buttonId, loading) {
+            const btn = document.getElementById(buttonId);
+            if (loading) {
+                btn.classList.add('loading');
+                btn.disabled = true;
+            } else {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+            }
+        }
+        
+        function updateTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('zh-CN', {hour12: false});
+            document.getElementById('current-time').textContent = timeStr;
+        }
+        
+        function updateFileCount() {
+            fetch('/api/files')
+                .then(response => response.json())
+                .then(data => {
+                    const total = data.images.length + data.audio.length + data.videos.length;
+                    document.getElementById('file-count').textContent = total;
+                })
+                .catch(error => console.error('Error:', error));
+        }
+        
+        // 初始化
+        init();
+    </script>
+</body>
+</html>

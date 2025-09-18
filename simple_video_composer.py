@@ -55,6 +55,11 @@ class SimpleVideoComposer:
             # 添加音频
             final_video = self._add_audio_simple(video, audio_path)
             
+            # 检查最终视频是否有效
+            if final_video is None:
+                logger.error("最终视频对象为None，无法导出")
+                raise ValueError("最终视频对象为None")
+            
             # 导出视频
             self._export_video_simple(final_video, output_path)
             
@@ -137,6 +142,11 @@ class SimpleVideoComposer:
     def _add_audio_simple(self, video, audio_path: str):
         """简化的音频添加方法"""
         try:
+            # 检查视频对象是否有效
+            if video is None:
+                logger.error("视频对象为None，无法添加音频")
+                return None
+            
             # 加载音频
             audio_clip = AudioFileClip(audio_path)
             
@@ -158,6 +168,7 @@ class SimpleVideoComposer:
                     except AttributeError:
                         # 如果都不行，返回原视频
                         logger.warning("无法添加音频，返回无音频视频")
+                        audio_clip.close()
                         return video
             else:
                 # 如果时长差异较大，调整视频长度
@@ -179,7 +190,11 @@ class SimpleVideoComposer:
                         final_video = final_video.with_audio(audio_clip)
                     except AttributeError:
                         logger.warning("无法添加音频，返回无音频视频")
+                        audio_clip.close()
                         return final_video
+            
+            # 关闭音频剪辑以释放资源
+            audio_clip.close()
             
             return final_video
             
@@ -191,10 +206,17 @@ class SimpleVideoComposer:
     def _export_video_simple(self, video, output_path: str):
         """简化的视频导出方法"""
         try:
+            # 检查视频对象是否有效
+            if video is None:
+                logger.error("视频对象为None，无法导出")
+                raise ValueError("视频对象为None")
+            
             # 确保输出目录存在
             output_dir = os.path.dirname(output_path)
             if output_dir:
                 os.makedirs(output_dir, exist_ok=True)
+            
+            logger.info(f"开始导出视频到: {output_path}")
             
             # 导出视频
             video.write_videofile(
@@ -204,8 +226,12 @@ class SimpleVideoComposer:
                 audio_codec='aac',
                 bitrate=self.bitrate,
                 temp_audiofile='temp-audio.m4a',
-                remove_temp=True
+                remove_temp=True,
+                verbose=False,
+                logger=None
             )
+            
+            logger.info("视频导出完成")
             
         except Exception as e:
             logger.error(f"导出视频失败: {e}")
